@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sistema de Precificação — Stackfllow</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <style>
+    :root { --orange: #F97316; }
+    body { background: #0d0d0d; color: #f5f5f5; font-family: 'Segoe UI', system-ui, sans-serif; }
+    .orange { color: var(--orange); }
+    .bg-orange { background: var(--orange); }
+    .border-orange { border-color: var(--orange); }
+    .checkbox-proposal {
+      width: 18px; height: 18px; cursor: pointer;
+      appearance: none; -webkit-appearance: none;
+      border: 2px solid #555; border-radius: 3px;
+      background: transparent; transition: all .15s;
+    }
+    .checkbox-proposal:checked { background: var(--orange); border-color: var(--orange); }
+    .checkbox-proposal:checked::after {
+      content: '✓'; display: block; text-align: center;
+      color: #fff; font-size: 12px; line-height: 14px; font-weight: bold;
+    }
+    .tipo-mensal { background: #1a2a1a; color: #4ade80; border: 1px solid #166534; }
+    .tipo-unico  { background: #2a1a0a; color: var(--orange); border: 1px solid #92400e; }
+    .cat-header { background: #1a1a1a; border-left: 3px solid var(--orange); }
+    .proposal-card { background: #161616; border: 1px solid #2a2a2a; border-radius: 12px; }
+    .input-dark {
+      background: #1f1f1f; border: 1px solid #333; border-radius: 6px;
+      color: #f5f5f5; padding: 6px 10px; width: 100%; font-size: 13px;
+      outline: none; transition: border .15s;
+    }
+    .input-dark:focus { border-color: var(--orange); }
+    .btn-pdf {
+      background: var(--orange); color: #fff; border: none; border-radius: 8px;
+      padding: 10px 20px; cursor: pointer; font-weight: 600; font-size: 14px;
+      display: flex; align-items: center; gap: 8px; transition: opacity .15s;
+    }
+    .btn-pdf:hover { opacity: 0.85; }
+    .btn-pdf:disabled { opacity: 0.4; cursor: default; }
+    .service-row:hover { background: #181818; }
+    .scrollbar::-webkit-scrollbar { width: 6px; }
+    .scrollbar::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+  </style>
+</head>
+<body class="min-h-screen pb-32">
+
+  <!-- HEADER -->
+  <header class="border-b border-gray-800 px-8 py-5 flex items-center gap-4 sticky top-0 z-50" style="background:#0d0d0d">
+    <img src="logo.png" alt="Stackfllow" class="h-9 w-9 object-contain" onerror="this.style.display='none'" />
+    <div>
+      <h1 class="text-xl font-bold tracking-wide">Sistema de Precificação</h1>
+      <p class="text-xs text-gray-500">Stackfllow — selecione os serviços e gere a proposta</p>
+    </div>
+  </header>
+
+  <div class="max-w-6xl mx-auto px-4 pt-8">
+
+    <!-- CATALOGO -->
+    <section>
+      <div class="flex items-baseline gap-3 mb-5">
+        <h2 class="text-2xl font-bold">Catálogo de Entregáveis</h2>
+        <span class="text-xs text-gray-500 tracking-widest uppercase">Marque para incluir em cada proposta</span>
+      </div>
+
+      <div class="rounded-xl overflow-hidden border border-gray-800">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="text-xs text-gray-400 tracking-widest uppercase" style="background:#111">
+              <th class="text-left px-5 py-3 font-medium">Entregável</th>
+              <th class="px-4 py-3 font-medium w-10">P1</th>
+              <th class="px-4 py-3 font-medium w-10">P2</th>
+              <th class="px-4 py-3 font-medium w-10">P3</th>
+              <th class="px-4 py-3 font-medium w-24">Tipo</th>
+              <th class="px-5 py-3 font-medium text-right w-36">Valor</th>
+            </tr>
+          </thead>
+          <tbody id="catalog-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- RESUMO DAS PROPOSTAS -->
+    <section class="mt-16">
+      <div class="flex items-baseline gap-3 mb-5">
+        <h2 class="text-2xl font-bold">Resumo das Propostas</h2>
+        <span class="text-xs text-gray-500 tracking-widest uppercase">Ajuste os dados e gere os PDFs</span>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-5" id="proposals-container"></div>
+    </section>
+
+  </div>
+
+  <script>
+  // ─── CATALOG DATA ──────────────────────────────────────────────────────────
+  const CATALOG = [
+    {
+      id: 'anuncios',
+      name: 'Anúncios',
+      services: [
+        {
+          id: 'meta-google-ads',
+          name: 'Meta - Google Ads',
+          type: 'mensal',
+          price: 2500,
+          descriptions: [
+            'Gestão completa de campanhas no Meta Ads (Facebook e Instagram) e Google Ads',
+            'Criação, segmentação e otimização contínua dos anúncios pagos',
+            'Monitoramento diário de performance com ajustes estratégicos',
+            'Relatório mensal com resultados, insights e próximos passos',
+          ]
+        },
+        {
+          id: 'outras-plataformas',
+          name: 'Outras plataformas',
+          type: 'mensal',
+          price: 1000,
+          descriptions: [
+            'Gestão de campanhas em plataformas como TikTok Ads, LinkedIn Ads ou Pinterest',
+            'Segmentação estratégica de público-alvo conforme o perfil do negócio',
+            'Acompanhamento e otimização de performance das campanhas',
+            'Relatório mensal com métricas e recomendações de melhoria',
+          ]
+        },
+        {
+          id: 'configuracao-conta',
+          name: 'Configuração de conta',
+          type: 'unico',
+          price: 700,
+          descriptions: [
+            'Criação e configuração completa das contas de anúncios nas plataformas',
+            'Instalação e verificação de pixels e tags de rastreamento',
+            'Configuração de públicos personalizados e lookalike',
+            'Estruturação inicial das campanhas prontas para veiculação',
+          ]
+        }
+      ]
+    },
+    {
+      id: 'criativos',
+      name: 'Criativos e Conteúdos',
+      services: [
+        {
+          id: 'criativos-estaticos',
+          name: 'Criativos estáticos (10/mês)',
+          type: 'mensal',
+          price: 1200,
+          descriptions: [
+            'Criação de 10 peças gráficas estáticas mensais para uso em anúncios',
+            'Design profissional alinhado à identidade visual da marca',
+            'Formatos otimizados para feed, stories e outros placements',
+            'Revisões incluídas para aprovação antes da publicação',
+          ]
+        },
+        {
+          id: 'edicao-videos',
+          name: 'Edição de vídeos (10/mês)',
+          type: 'mensal',
+          price: 1500,
+          descriptions: [
+            'Edição profissional de 10 vídeos mensais para anúncios e redes sociais',
+            'Inclusão de legendas, trilha sonora, cortes e transições',
+            'Adaptação para Reels, Stories, Feed e YouTube',
+            'Entrega em alta qualidade pronto para veiculação',
+          ]
+        },
+        {
+          id: 'copywriting',
+          name: 'Copywriting de anúncios',
+          type: 'mensal',
+          price: 500,
+          descriptions: [
+            'Criação de textos persuasivos e estratégicos para anúncios pagos',
+            'Desenvolvimento de headlines, descrições e CTAs de alta conversão',
+            'Copy personalizado para cada etapa do funil de vendas',
+            'Testes A/B de mensagens para maximizar o retorno dos anúncios',
+          ]
+        }
+      ]
+    },
+    {
+      id: 'sites',
+      name: 'Sites ou Landing Pages',
+      services: [
+        {
+          id: 'site-completo',
+          name: 'Site Completo',
+          type: 'unico',
+          price: 5400,
+          descriptions: [
+            'Desenvolvimento de site institucional completo e 100% responsivo',
+            'Design exclusivo e personalizado alinhado à identidade visual da marca',
+            'Otimização técnica para SEO e alta performance de carregamento',
+            'Integração com ferramentas de análise, rastreamento e formulários de contato',
+          ]
+        },
+        {
+          id: 'landing-page',
+          name: 'Landing Page',
+          type: 'unico',
+          price: 3500,
+          descriptions: [
+            'Criação de página de alta conversão focada em um objetivo específico',
+            'Design estratégico orientado à captura de leads ou vendas diretas',
+            'Integração com formulários, CRM e ferramentas de automação de marketing',
+            'Instalação de pixels de rastreamento e configuração de testes de performance',
+          ]
+        }
+      ]
+    }
+  ];
+
+  // ─── STATE ─────────────────────────────────────────────────────────────────
+  const state = {
+    selections: { p1: new Set(), p2: new Set(), p3: new Set() },
+    info: {
+      p1: { clientName: '', companyName: '', sellerName: '', discount: 0 },
+      p2: { clientName: '', companyName: '', sellerName: '', discount: 0 },
+      p3: { clientName: '', companyName: '', sellerName: '', discount: 0 },
+    }
+  };
+
+  // ─── HELPERS ───────────────────────────────────────────────────────────────
+  function fmt(value) {
+    return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  }
+
+  function getAllServices() {
+    const all = {};
+    CATALOG.forEach(cat => cat.services.forEach(s => { all[s.id] = s; }));
+    return all;
+  }
+
+  function getSelected(proposalKey) {
+    const all = getAllServices();
+    return [...state.selections[proposalKey]].map(id => all[id]).filter(Boolean);
+  }
+
+  function calcTotals(proposalKey) {
+    const services = getSelected(proposalKey);
+    const discount = state.info[proposalKey].discount / 100;
+    const mensal = services.filter(s => s.type === 'mensal').reduce((a, s) => a + s.price, 0);
+    const unico  = services.filter(s => s.type === 'unico').reduce((a, s) => a + s.price, 0);
+    const subtotal = mensal + unico;
+    return {
+      mensal:    mensal  * (1 - discount),
+      unico:     unico   * (1 - discount),
+      subtotal,
+      discountAmt: subtotal * discount,
+      services,
+    };
+  }
+
+  function proposalCode() {
+    return String(Math.floor(10000 + Math.random() * 90000));
+  }
+
+  // ─── RENDER CATALOG ────────────────────────────────────────────────────────
+  function renderCatalog() {
+    const tbody = document.getElementById('catalog-body');
+    tbody.innerHTML = '';
+
+    CATALOG.forEach(cat => {
+      // Category header row
+      const catRow = document.createElement('tr');
+      catRow.className = 'cat-header';
+      catRow.innerHTML = `
+        <td colspan="6" class="px-5 py-3 font-semibold text-sm">
+          <span class="orange mr-2">■</span>${cat.name}
+          <span class="text-xs text-gray-500 ml-2">${cat.services.length} itens</span>
+        </td>`;
+      tbody.appendChild(catRow);
+
+      // Service rows
+      cat.services.forEach(service => {
+        const row = document.createElement('tr');
+        row.className = 'service-row border-t border-gray-800 transition-colors';
+        row.innerHTML = `
+          <td class="px-5 py-3 font-medium">${service.name}</td>
+          <td class="px-4 py-3 text-center">
+            <input type="checkbox" class="checkbox-proposal"
+              data-proposal="p1" data-service="${service.id}" />
+          </td>
+          <td class="px-4 py-3 text-center">
+            <input type="checkbox" class="checkbox-proposal"
+              data-proposal="p2" data-service="${service.id}" />
+          </td>
+          <td class="px-4 py-3 text-center">
+            <input type="checkbox" class="checkbox-proposal"
+              data-proposal="p3" data-service="${service.id}" />
+          </td>
+          <td class="px-4 py-3">
+            <span class="text-xs font-medium px-2 py-1 rounded-full ${service.type === 'mensal' ? 'tipo-mensal' : 'tipo-unico'}">
+              ${service.type === 'mensal' ? 'Mensal' : 'Único'}
+            </span>
+          </td>
+          <td class="px-5 py-3 text-right font-semibold orange">${fmt(service.price)}</td>`;
+        tbody.appendChild(row);
+      });
+    });
+
+    // Checkbox event listeners
+    document.querySelectorAll('.checkbox-proposal').forEach(cb => {
+      cb.addEventListener('change', e => {
+        const proposal = e.target.dataset.proposal;
+        const serviceId = e.target.dataset.service;
+        if (e.target.checked) {
+          state.selections[proposal].add(serviceId);
+        } else {
+          state.selections[proposal].delete(serviceId);
+        }
+        renderProposals();
+      });
+    });
+  }
+
+  // ─── RENDER PROPOSALS ─────────────────────────────────────────────────────
+  function renderProposals() {
+    const container = document.getElementById('proposals-container');
+    container.innerHTML = '';
+
+    ['p1', 'p2', 'p3'].forEach((key, idx) => {
+      const { mensal, unico, subtotal, discountAmt, services } = calcTotals(key);
+      const info = state.info[key];
+      const hasMensal = services.some(s => s.type === 'mensal');
+      const hasUnico  = services.some(s => s.type === 'unico');
+      const label = `0${idx + 1}`;
+
+      const card = document.createElement('div');
+      card.className = 'proposal-card p-5 flex flex-col gap-4';
+
+      // Header
+      card.innerHTML += `
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-xs text-gray-500 uppercase tracking-widest mb-1">Proposta</p>
+            <p class="text-3xl font-bold">${label}</p>
+          </div>
+        </div>`;
+
+      // Totals
+      card.innerHTML += `
+        <div class="rounded-lg p-4 space-y-2" style="background:#111">
+          <div class="flex justify-between text-sm text-gray-400">
+            <span>Subtotal</span><span>${fmt(subtotal)}</span>
+          </div>
+          <div class="flex justify-between items-center text-sm text-gray-400">
+            <span>Desconto %</span>
+            <input type="number" min="0" max="100" value="${info.discount}"
+              class="input-dark w-16 text-right py-1 px-2"
+              data-key="${key}" data-field="discount" />
+          </div>
+          <div class="flex justify-between text-xs text-red-400">
+            <span></span><span>−${fmt(discountAmt)}</span>
+          </div>
+          <div class="border-t border-gray-700 pt-2 space-y-1">
+            ${hasMensal ? `<div class="flex justify-between font-bold"><span class="text-xs text-gray-400 uppercase">Mensal*</span><span class="orange">${fmt(mensal)}</span></div>` : ''}
+            ${hasUnico  ? `<div class="flex justify-between font-bold"><span class="text-xs text-gray-400 uppercase">Único**</span><span class="orange">${fmt(unico)}</span></div>` : ''}
+            ${!hasMensal && !hasUnico ? `<div class="text-center text-xs text-gray-600 py-2">Nenhum serviço selecionado</div>` : ''}
+          </div>
+        </div>`;
+
+      // Selected services list
+      if (services.length > 0) {
+        let listHtml = `<div class="text-xs space-y-1 max-h-36 overflow-y-auto scrollbar">`;
+        services.forEach(s => {
+          listHtml += `<div class="flex justify-between gap-2 text-gray-300">
+            <span class="truncate">${s.name}</span>
+            <span class="text-gray-500 shrink-0">${fmt(s.price)}</span>
+          </div>`;
+        });
+        listHtml += `</div>`;
+        card.innerHTML += listHtml;
+        card.innerHTML += `<p class="text-xs text-gray-600">*mensal = recorrente &nbsp;|&nbsp; **único = pagamento único</p>`;
+      }
+
+      // Client info fields
+      card.innerHTML += `
+        <div class="space-y-2 border-t border-gray-800 pt-4">
+          <p class="text-xs text-gray-500 uppercase tracking-widest mb-3">Dados da proposta</p>
+          <div>
+            <label class="text-xs text-gray-500 mb-1 block">Nome do cliente</label>
+            <input type="text" placeholder="Ex: João Silva"
+              class="input-dark" value="${info.clientName}"
+              data-key="${key}" data-field="clientName" />
+          </div>
+          <div>
+            <label class="text-xs text-gray-500 mb-1 block">Empresa do cliente</label>
+            <input type="text" placeholder="Ex: Empresa X LTDA"
+              class="input-dark" value="${info.companyName}"
+              data-key="${key}" data-field="companyName" />
+          </div>
+          <div>
+            <label class="text-xs text-gray-500 mb-1 block">Nome do vendedor</label>
+            <input type="text" placeholder="Ex: Maria Oliveira"
+              class="input-dark" value="${info.sellerName}"
+              data-key="${key}" data-field="sellerName" />
+          </div>
+        </div>`;
+
+      // PDF Button
+      card.innerHTML += `
+        <button class="btn-pdf w-full justify-center" data-proposal="${key}"
+          ${services.length === 0 ? 'disabled' : ''}>
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+            <path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/>
+            <path d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3z"/>
+          </svg>
+          Gerar PDF
+        </button>`;
+
+      container.appendChild(card);
+    });
+
+    // Input events (info fields + discount)
+    container.querySelectorAll('input[data-key]').forEach(input => {
+      input.addEventListener('input', e => {
+        const { key, field } = e.target.dataset;
+        state.info[key][field] = field === 'discount'
+          ? Math.max(0, Math.min(100, Number(e.target.value) || 0))
+          : e.target.value;
+        if (field === 'discount') renderProposals();
+      });
+    });
+
+    // PDF buttons
+    container.querySelectorAll('button[data-proposal]').forEach(btn => {
+      btn.addEventListener('click', e => {
+        const key = e.currentTarget.dataset.proposal;
+        generatePDF(key);
+      });
+    });
+  }
+
+  // ─── PDF GENERATION ────────────────────────────────────────────────────────
+  function loadLogoBase64() {
+    return new Promise(resolve => {
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          canvas.width = img.naturalWidth;
+          canvas.height = img.naturalHeight;
+          canvas.getContext('2d').drawImage(img, 0, 0);
+          resolve(canvas.toDataURL('image/png'));
+        } catch { resolve(null); }
+      };
+      img.onerror = () => resolve(null);
+      img.src = 'logo.png';
+    });
+  }
+
+  async function generatePDF(proposalKey) {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+
+    const W = 210, H = 297, M = 18;
+    const CW = W - M * 2;
+    const ORANGE_RGB = [249, 115, 22];
+    const code = proposalCode();
+    const info = state.info[proposalKey];
+    const { mensal, unico, subtotal, discountAmt, services } = calcTotals(proposalKey);
+    const hasMensal = services.some(s => s.type === 'mensal');
+    const hasUnico  = services.some(s => s.type === 'unico');
+
+    // ── Background
+    doc.setFillColor(255, 255, 255);
+    doc.rect(0, 0, W, H, 'F');
+
+    // ── Orange triangles — top right
+    doc.setFillColor(...ORANGE_RGB);
+    // Big triangle
+    doc.lines([[0,0],[0,50],[-50,0]], W, 0, [1,1], 'F', true);
+    // Small triangle below
+    doc.lines([[0,0],[0,22],[-22,0]], W, 55, [1,1], 'F', true);
+
+    let y = 18;
+
+    // ── Logo
+    const logoData = await loadLogoBase64();
+    if (logoData) {
+      doc.addImage(logoData, 'PNG', M, y, 14, 14);
+    }
+
+    // ── Title
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(26);
+    doc.setTextColor(0, 0, 0);
+    doc.text('PROPOSTA COMERCIAL', M + (logoData ? 18 : 0), y + 10);
+
+    y += 14;
+
+    // ── Code
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(120, 120, 120);
+    doc.text(`#${code}`, M + (logoData ? 18 : 0), y + 2);
+
+    y += 10;
+
+    // ── Separator
+    doc.setDrawColor(220, 220, 220);
+    doc.setLineWidth(0.4);
+    doc.line(M, y, W - M, y);
+    y += 7;
+
+    // ── Info boxes
+    const fields = [
+      { label: 'VENDEDOR:', value: info.sellerName },
+      { label: 'CLIENTE:',  value: info.clientName },
+      { label: 'EMPRESA:',  value: info.companyName },
+    ];
+    doc.setFontSize(9);
+    fields.forEach(f => {
+      doc.setFillColor(243, 244, 246);
+      doc.rect(M, y, CW, 9, 'F');
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(0, 0, 0);
+      doc.text(f.label, M + 3, y + 6);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(60, 60, 60);
+      doc.text(f.value || '', M + 30, y + 6);
+      y += 12;
+    });
+
+    y += 6;
+
+    // ── "O QUE SERÁ ENTREGUE?" heading
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(13);
+    doc.setTextColor(0, 0, 0);
+    const heading = 'O QUE SERÁ ENTREGUE?';
+    doc.text(heading, W / 2, y, { align: 'center' });
+    y += 12;
+
+    // ── Services
+    services.forEach(service => {
+      if (y > H - 75) { doc.addPage(); y = 18; }
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.setTextColor(...ORANGE_RGB);
+      doc.text(service.name.toUpperCase(), M, y);
+      y += 6;
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+      doc.setTextColor(70, 70, 70);
+      service.descriptions.forEach(desc => {
+        if (y > H - 75) { doc.addPage(); y = 18; }
+        const lines = doc.splitTextToSize(`• ${desc}`, CW - 4);
+        lines.forEach(line => {
+          doc.text(line, M + 3, y);
+          y += 5;
+        });
+      });
+      y += 5;
+    });
+
+    // ── Investment boxes
+    if (y > H - 55) { doc.addPage(); y = 18; }
+    y += 4;
+
+    const boxH = 26;
+    if (hasMensal && hasUnico) {
+      const bw = (CW - 6) / 2;
+      // Único
+      doc.setDrawColor(0,0,0); doc.setLineWidth(0.5);
+      doc.rect(M, y, bw, boxH);
+      doc.setFont('helvetica','bold'); doc.setFontSize(8); doc.setTextColor(0,0,0);
+      doc.text('INVESTIMENTO ÚNICO:', M + 4, y + 8);
+      doc.setFontSize(15);
+      doc.text(fmt(unico), M + 4, y + 20);
+      // Mensal
+      doc.rect(M + bw + 6, y, bw, boxH);
+      doc.setFontSize(8);
+      doc.text('INVESTIMENTO MENSAL:', M + bw + 10, y + 8);
+      doc.setFontSize(15);
+      doc.text(fmt(mensal), M + bw + 10, y + 20);
+    } else if (hasUnico) {
+      doc.setDrawColor(0,0,0); doc.setLineWidth(0.5); doc.rect(M, y, CW, boxH);
+      doc.setFont('helvetica','bold'); doc.setFontSize(8); doc.setTextColor(0,0,0);
+      doc.text('INVESTIMENTO ÚNICO:', M + 4, y + 8);
+      doc.setFontSize(15); doc.text(fmt(unico), M + 4, y + 20);
+    } else if (hasMensal) {
+      doc.setDrawColor(0,0,0); doc.setLineWidth(0.5); doc.rect(M, y, CW, boxH);
+      doc.setFont('helvetica','bold'); doc.setFontSize(8); doc.setTextColor(0,0,0);
+      doc.text('INVESTIMENTO MENSAL:', M + 4, y + 8);
+      doc.setFontSize(15); doc.text(fmt(mensal), M + 4, y + 20);
+    }
+
+    y += boxH + 10;
+
+    // ── Date / validity
+    if (y > H - 30) { doc.addPage(); y = 18; }
+    const today = new Date();
+    const dateStr = today.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' });
+    doc.setFontSize(9); doc.setTextColor(0, 0, 0);
+    doc.setFont('helvetica', 'bold'); doc.text('DATA: ', M, y);
+    doc.setFont('helvetica', 'normal'); doc.text(dateStr, M + 14, y);
+    y += 6;
+    doc.setFont('helvetica', 'bold'); doc.text('VALIDADE DO ORÇAMENTO: ', M, y);
+    doc.setFont('helvetica', 'normal'); doc.text('7 dias corridos a partir da data de envio.', M + 56, y);
+
+    // ── Bottom orange triangles (last page)
+    doc.setFillColor(...ORANGE_RGB);
+    doc.lines([[0,0],[0,-50],[50,0]], W, H, [1,1], 'F', true);
+    doc.lines([[0,0],[0,-22],[-22,0]], W - 55, H, [1,1], 'F', true);
+
+    // ── Footer
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(120,120,120);
+    doc.text('(16) 99406-8079  —  stackfllow.com.br', W / 2, H - 6, { align: 'center' });
+
+    // ── Save
+    const num = proposalKey === 'p1' ? '1' : proposalKey === 'p2' ? '2' : '3';
+    const dateFile = today.toISOString().split('T')[0];
+    doc.save(`proposta_${num}_${dateFile}.pdf`);
+  }
+
+  // ─── FORMAT CURRENCY (browser) ────────────────────────────────────────────
+  function fmt(value) {
+    return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  }
+
+  // ─── INIT ─────────────────────────────────────────────────────────────────
+  renderCatalog();
+  renderProposals();
+  </script>
+</body>
+</html>
