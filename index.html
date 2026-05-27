@@ -459,85 +459,50 @@
     const W = 210, H = 297, M = 18;
     const CW = W - M * 2;
     const ORANGE_RGB = [249, 115, 22];
-    const code = proposalCode();
     const info = state.info[proposalKey];
-    const { mensal, unico, subtotal, discountAmt, services } = calcTotals(proposalKey);
+    const { mensal, unico, services } = calcTotals(proposalKey);
     const hasMensal = services.some(s => s.type === 'mensal');
     const hasUnico  = services.some(s => s.type === 'unico');
 
-    // ── Background
+    // ── Background branco
     doc.setFillColor(255, 255, 255);
     doc.rect(0, 0, W, H, 'F');
 
-    // ── Orange triangles — top right
-    doc.setFillColor(...ORANGE_RGB);
-    // Big triangle
-    doc.lines([[0,0],[0,50],[-50,0]], W, 0, [1,1], 'F', true);
-    // Small triangle below
-    doc.lines([[0,0],[0,22],[-22,0]], W, 55, [1,1], 'F', true);
+    let y = 20;
 
-    let y = 18;
-
-    // ── Logo
-    const logoData = await loadLogoBase64();
-    if (logoData) {
-      doc.addImage(logoData, 'PNG', M, y, 14, 14);
-    }
-
-    // ── Title
+    // ── Título
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(26);
+    doc.setFontSize(28);
     doc.setTextColor(0, 0, 0);
-    doc.text('PROPOSTA COMERCIAL', M + (logoData ? 18 : 0), y + 10);
-
-    y += 14;
-
-    // ── Code
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(9);
-    doc.setTextColor(120, 120, 120);
-    doc.text(`#${code}`, M + (logoData ? 18 : 0), y + 2);
-
+    doc.text('PROPOSTA COMERCIAL', M, y);
     y += 10;
 
-    // ── Separator
-    doc.setDrawColor(220, 220, 220);
-    doc.setLineWidth(0.4);
-    doc.line(M, y, W - M, y);
-    y += 7;
-
-    // ── Info boxes
-    const fields = [
-      { label: 'VENDEDOR:', value: info.sellerName },
-      { label: 'CLIENTE:',  value: info.clientName },
-      { label: 'EMPRESA:',  value: info.companyName },
-    ];
+    // ── NOME DO CLIENTE + EMPRESA (texto bold simples)
     doc.setFontSize(9);
-    fields.forEach(f => {
-      doc.setFillColor(243, 244, 246);
-      doc.rect(M, y, CW, 9, 'F');
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(0, 0, 0);
-      doc.text(f.label, M + 3, y + 6);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(60, 60, 60);
-      doc.text(f.value || '', M + 30, y + 6);
-      y += 12;
-    });
+    doc.setTextColor(0, 0, 0);
 
+    doc.setFont('helvetica', 'bold');
+    doc.text('NOME DO CLIENTE:', M, y);
+    doc.setFont('helvetica', 'normal');
+    doc.text(info.clientName || '', M + 38, y);
     y += 6;
 
-    // ── "O QUE SERÁ ENTREGUE?" heading
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(13);
+    doc.text('EMPRESA:', M, y);
+    doc.setFont('helvetica', 'normal');
+    doc.text(info.companyName || '', M + 22, y);
+    y += 14;
+
+    // ── "O QUE SERÁ ENTREGUE?" centralizado
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(14);
     doc.setTextColor(0, 0, 0);
-    const heading = 'O QUE SERÁ ENTREGUE?';
-    doc.text(heading, W / 2, y, { align: 'center' });
+    doc.text('O QUE SERÁ ENTREGUE?', W / 2, y, { align: 'center' });
     y += 12;
 
-    // ── Services
+    // ── Serviços
     services.forEach(service => {
-      if (y > H - 75) { doc.addPage(); y = 18; }
+      if (y > H - 70) { doc.addPage(); y = 20; }
 
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(10);
@@ -547,54 +512,47 @@
 
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(9);
-      doc.setTextColor(70, 70, 70);
+      doc.setTextColor(60, 60, 60);
       service.descriptions.forEach(desc => {
-        if (y > H - 75) { doc.addPage(); y = 18; }
+        if (y > H - 70) { doc.addPage(); y = 20; }
         const lines = doc.splitTextToSize(`• ${desc}`, CW - 4);
-        lines.forEach(line => {
-          doc.text(line, M + 3, y);
-          y += 5;
-        });
+        lines.forEach(line => { doc.text(line, M + 3, y); y += 5; });
       });
       y += 5;
     });
 
-    // ── Investment boxes
-    if (y > H - 55) { doc.addPage(); y = 18; }
+    // ── Boxes de investimento (borda e label laranja)
+    if (y > H - 52) { doc.addPage(); y = 20; }
     y += 4;
 
-    const boxH = 26;
+    const boxH = 28;
+    const drawBox = (x, bw, label, value) => {
+      doc.setDrawColor(...ORANGE_RGB);
+      doc.setLineWidth(0.6);
+      doc.rect(x, y, bw, boxH);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.setTextColor(...ORANGE_RGB);
+      doc.text(label, x + 4, y + 9);
+      doc.setFontSize(16);
+      doc.setTextColor(0, 0, 0);
+      doc.text(value, x + 4, y + 22);
+    };
+
     if (hasMensal && hasUnico) {
       const bw = (CW - 6) / 2;
-      // Único
-      doc.setDrawColor(0,0,0); doc.setLineWidth(0.5);
-      doc.rect(M, y, bw, boxH);
-      doc.setFont('helvetica','bold'); doc.setFontSize(8); doc.setTextColor(0,0,0);
-      doc.text('INVESTIMENTO ÚNICO:', M + 4, y + 8);
-      doc.setFontSize(15);
-      doc.text(fmt(unico), M + 4, y + 20);
-      // Mensal
-      doc.rect(M + bw + 6, y, bw, boxH);
-      doc.setFontSize(8);
-      doc.text('INVESTIMENTO MENSAL:', M + bw + 10, y + 8);
-      doc.setFontSize(15);
-      doc.text(fmt(mensal), M + bw + 10, y + 20);
+      drawBox(M,          bw, 'INVESTIMENTO ÚNICO:',   fmt(unico));
+      drawBox(M + bw + 6, bw, 'INVESTIMENTO MENSAL:',  fmt(mensal));
     } else if (hasUnico) {
-      doc.setDrawColor(0,0,0); doc.setLineWidth(0.5); doc.rect(M, y, CW, boxH);
-      doc.setFont('helvetica','bold'); doc.setFontSize(8); doc.setTextColor(0,0,0);
-      doc.text('INVESTIMENTO ÚNICO:', M + 4, y + 8);
-      doc.setFontSize(15); doc.text(fmt(unico), M + 4, y + 20);
+      drawBox(M, CW, 'INVESTIMENTO ÚNICO:', fmt(unico));
     } else if (hasMensal) {
-      doc.setDrawColor(0,0,0); doc.setLineWidth(0.5); doc.rect(M, y, CW, boxH);
-      doc.setFont('helvetica','bold'); doc.setFontSize(8); doc.setTextColor(0,0,0);
-      doc.text('INVESTIMENTO MENSAL:', M + 4, y + 8);
-      doc.setFontSize(15); doc.text(fmt(mensal), M + 4, y + 20);
+      drawBox(M, CW, 'INVESTIMENTO MENSAL:', fmt(mensal));
     }
 
     y += boxH + 10;
 
-    // ── Date / validity
-    if (y > H - 30) { doc.addPage(); y = 18; }
+    // ── Data e validade
+    if (y > H - 25) { doc.addPage(); y = 20; }
     const today = new Date();
     const dateStr = today.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' });
     doc.setFontSize(9); doc.setTextColor(0, 0, 0);
@@ -602,18 +560,13 @@
     doc.setFont('helvetica', 'normal'); doc.text(dateStr, M + 14, y);
     y += 6;
     doc.setFont('helvetica', 'bold'); doc.text('VALIDADE DO ORÇAMENTO: ', M, y);
-    doc.setFont('helvetica', 'normal'); doc.text('7 dias corridos a partir da data de envio.', M + 56, y);
+    doc.setFont('helvetica', 'normal'); doc.text('7 dias corridos a partir da data de envio.', M + 58, y);
 
-    // ── Bottom orange triangles (last page)
-    doc.setFillColor(...ORANGE_RGB);
-    doc.lines([[0,0],[0,-50],[50,0]], W, H, [1,1], 'F', true);
-    doc.lines([[0,0],[0,-22],[-22,0]], W - 55, H, [1,1], 'F', true);
+    // ── Rodapé
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(120, 120, 120);
+    doc.text('(16) 99406-8079  —  stackfllow.com.br', W / 2, H - 8, { align: 'center' });
 
-    // ── Footer
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(120,120,120);
-    doc.text('(16) 99406-8079  —  stackfllow.com.br', W / 2, H - 6, { align: 'center' });
-
-    // ── Save
+    // ── Salvar
     const num = proposalKey === 'p1' ? '1' : proposalKey === 'p2' ? '2' : '3';
     const dateFile = today.toISOString().split('T')[0];
     doc.save(`proposta_${num}_${dateFile}.pdf`);
